@@ -1,0 +1,1131 @@
+{
+  "name": "AEGIS 2.0 - Public Intake Protected Template (Configure Credentials Before Activation)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "aegis-investigate",
+        "responseMode": "responseNode",
+        "options": {},
+        "authentication": "headerAuth"
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -96,
+        32
+      ],
+      "id": "72182435-311d-4fd2-9c36-aee0a2b2e426",
+      "name": "AEGIS Case Intake",
+      "webhookId": "207b2d24-1342-45e1-9128-11a424c82bf8"
+    },
+    {
+      "parameters": {
+        "jsCode": "const item = $input.first().json;\nconst body = item.body ?? item;\n\nconst required = [\n  \"case_id\",\n  \"risk_level\",\n  \"risk_score\",\n  \"governance_action\",\n  \"route\"\n];\n\nconst missing = required.filter(\n  (field) =>\n    body[field] === undefined ||\n    body[field] === null ||\n    body[field] === \"\"\n);\n\nconst allowedRiskLevels = [\"LOW\", \"MEDIUM\", \"HIGH\", \"UNKNOWN\"];\n\nconst errors = [];\n\nif (missing.length) {\n  errors.push(`Missing required fields: ${missing.join(\", \")}`);\n}\n\nif (\n  body.risk_level &&\n  !allowedRiskLevels.includes(String(body.risk_level).toUpperCase())\n) {\n  errors.push(\"Invalid risk_level\");\n}\n\nif (\n  body.risk_score !== undefined &&\n  body.risk_score !== null &&\n  (\n    typeof Number(body.risk_score) !== \"number\" ||\n    Number.isNaN(Number(body.risk_score)) ||\n    Number(body.risk_score) < 0 ||\n    Number(body.risk_score) > 100\n  )\n) {\n  errors.push(\"risk_score must be between 0 and 100\");\n}\n\nreturn [\n  {\n    json: {\n      ...body,\n      orchestration: {\n        payload_valid: errors.length === 0,\n        validation_errors: errors,\n        validated_by: \"n8n\",\n        authority: \"PYTHON_GOVERNANCE\",\n        banking_action_executed: false\n      }\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        128,
+        32
+      ],
+      "id": "62beb00b-ed2b-424d-8564-de0807035f80",
+      "name": "Validate Governed Payload"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({\n  accepted: true,\n  case_id: $json.case_id ?? null,\n  risk_level: $json.risk_level ?? \"UNKNOWN\",\n  risk_score: $json.risk_score ?? null,\n  governance_action: $json.governance_action ?? null,\n  route: $json.route ?? null,\n\n  workflow_state:\n    $json.risk_level === \"MEDIUM\"\n      ? \"AWAITING_HUMAN_VERIFICATION\"\n      : \"AWAITING_HUMAN_REVIEW\",\n\n  resume_url: $execution.resumeUrl,\n\n  authority: \"PYTHON_GOVERNANCE\",\n  banking_action_executed: false,\n\n  message:\n    $json.risk_level === \"MEDIUM\"\n      ? \"MEDIUM-risk case accepted by n8n and requires human verification.\"\n      : \"HIGH-risk case accepted by n8n and requires human review.\"\n}) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        704,
+        32
+      ],
+      "id": "a51143dc-db9c-4b5f-9ed3-e43df06cc1f1",
+      "name": "AEGIS Intake Response"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{$json.orchestration.payload_valid.toString()}}",
+                    "rightValue": "false",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "c8a20f48-ef4b-4e36-b6a7-6f104d62fa1d"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "INVALID / FAIL-SAFE"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "067ed22d-b60a-48bb-a3aa-1544892e4cd5",
+                    "leftValue": "={{$json.risk_level}}",
+                    "rightValue": "LOW",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "LOW"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "d4260edf-8049-4391-9dcf-5a278f2b387e",
+                    "leftValue": "={{$json.risk_level}}",
+                    "rightValue": "MEDIUM",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "MEDIUM"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "0eb18084-86bf-4d4e-b633-afe3388e3734",
+                    "leftValue": "={{$json.risk_level}}",
+                    "rightValue": "HIGH",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "HIGH"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "68ff98d6-38ed-4487-92d7-d9dea153e556",
+                    "leftValue": "={{$json.risk_level}}",
+                    "rightValue": "UNKNOWN",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "UNKNOWN/ FAIL-SAFE"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        304,
+        -16
+      ],
+      "id": "0eb665ad-d1c7-404e-b420-4db64affc0ae",
+      "name": "Governance Router"
+    },
+    {
+      "parameters": {
+        "resume": "webhook",
+        "httpMethod": "POST",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        1104,
+        32
+      ],
+      "id": "000d7fc4-dac2-46fb-89b2-e754ad70e306",
+      "name": "Wait for Human Decision",
+      "webhookId": "1b385847-2518-4c2a-8a54-59cabbed9103"
+    },
+    {
+      "parameters": {
+        "jsCode": "const item = $input.first().json;\nconst body = item.body ?? item;\n\nconst allowedDecisions = [\n  \"VERIFY CUSTOMER\",\n  \"HOLD AND REVIEW\",\n  \"PROCEED\",\n  \"ESCALATE TO SENIOR INVESTIGATOR\"\n];\n\nconst humanDecision = String(\n  body.human_decision ?? \"\"\n).trim().toUpperCase();\n\nconst investigator = String(\n  body.investigator ?? \"\"\n).trim();\n\nconst rationale = String(\n  body.rationale ?? \"\"\n).trim();\n\nconst caseId = String(\n  body.case_id ?? \"\"\n).trim();\n\nconst errors = [];\n\nif (!caseId) {\n  errors.push(\"Missing case_id\");\n}\n\nif (!humanDecision) {\n  errors.push(\"Missing human_decision\");\n}\n\nif (\n  humanDecision &&\n  !allowedDecisions.includes(humanDecision)\n) {\n  errors.push(\"Invalid human_decision\");\n}\n\nif (!investigator) {\n  errors.push(\"Missing investigator\");\n}\n\nif (!rationale) {\n  errors.push(\"Missing rationale\");\n}\n\nreturn [\n  {\n    json: {\n      case_id: caseId || null,\n      human_decision: humanDecision || null,\n      investigator: investigator || null,\n      rationale: rationale || null,\n      decision_source:\n        body.decision_source ?? \"HUMAN_INVESTIGATOR\",\n\n      human_review: {\n        valid: errors.length === 0,\n        validation_errors: errors,\n        validated_by: \"n8n\",\n        authority: \"HUMAN_INVESTIGATOR\"\n      },\n\n      banking_action_executed: false\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1328,
+        32
+      ],
+      "id": "a534942f-c9dc-4ed4-a614-e1526a90c26e",
+      "name": "Validate Human Decision"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{$json.human_review.valid.toString()}}",
+                    "rightValue": "false",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "17881fa5-412d-46fb-b7bb-9c277033c774"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "=INVALID HUMAN DECISION / FAIL-SAFE"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "0340cb87-2af8-4145-ad09-79ccc7a0920e",
+                    "leftValue": "={{$json.human_decision}}",
+                    "rightValue": "PROCEED",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "PROCEED"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "618c78c2-20aa-47a5-9651-23fe78dcbc32",
+                    "leftValue": "={{$json.human_decision}}",
+                    "rightValue": "VERIFY CUSTOMER",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "=VERIFY CUSTOMER"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "99ca963a-46c1-425b-8f24-558769059371",
+                    "leftValue": "={{$json.human_decision}}",
+                    "rightValue": "HOLD AND REVIEW",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "HOLD AND REVIEW"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "75d2de9a-7bb2-44e7-93a0-f33d933edcbe",
+                    "leftValue": "={{$json.human_decision}}",
+                    "rightValue": "ESCALATE TO SENIOR INVESTIGATOR",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "ESCALATE "
+            }
+          ]
+        },
+        "looseTypeValidation": "={{ false }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        1776,
+        -16
+      ],
+      "id": "748609f7-5179-4624-8dc4-709135c3e8f5",
+      "name": "Human Decision Router"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "d5755d74-e1b5-4a4e-be60-7abb380e53a3",
+              "name": "workflow_outcome",
+              "value": "SENIOR_INVESTIGATOR_ESCALATION",
+              "type": "string"
+            },
+            {
+              "id": "c7ecd460-547e-44b7-b506-3072369a82ce",
+              "name": "workflow_status",
+              "value": "ESCALATED",
+              "type": "string"
+            },
+            {
+              "id": "cc27350b-e31e-4331-9228-707fb678a925",
+              "name": "workflow_layer",
+              "value": "n8n_orchestration",
+              "type": "string"
+            },
+            {
+              "id": "cac8e654-b6bc-4332-a43f-9ba40d322939",
+              "name": "decision_authority",
+              "value": "HUMAN_INVESTIGATOR",
+              "type": "string"
+            },
+            {
+              "id": "c1e2ce0d-0cb1-4c05-98ca-eaa18a98b1a0",
+              "name": "banking_action_executed",
+              "value": false,
+              "type": "boolean"
+            },
+            {
+              "id": "45bc1fd4-91dd-49e2-bb8d-90d29c4fa0ec",
+              "name": "orchestration_complete",
+              "value": false,
+              "type": "boolean"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        2112,
+        464
+      ],
+      "id": "3b0e2569-ee26-40e0-a906-37c9a6326e32",
+      "name": "Senior Investigator Escalation"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "d5755d74-e1b5-4a4e-be60-7abb380e53a3",
+              "name": "workflow_outcome",
+              "value": "FAIL_SAFE_MANUAL_REVIEW",
+              "type": "string"
+            },
+            {
+              "id": "33834e1f-c88e-411e-97c7-b0917dcb5502",
+              "name": "workflow_status",
+              "value": "MANUAL_REVIEW_REQUIRED",
+              "type": "string"
+            },
+            {
+              "id": "fe808f75-bcee-4ca5-a4f7-00dbe9f19515",
+              "name": "workflow_layer",
+              "value": "n8n_orchestration",
+              "type": "string"
+            },
+            {
+              "id": "4c021cf4-bd1a-4c2f-a67b-d368a5f8c368",
+              "name": "decision_authority",
+              "value": "FAIL_SAFE_GOVERNANCE",
+              "type": "string"
+            },
+            {
+              "id": "08fc2e43-7f25-4188-822b-74d848783619",
+              "name": "banking_action_executed",
+              "value": false,
+              "type": "boolean"
+            },
+            {
+              "id": "4ea2886e-766a-48f1-bd45-3046f403f716",
+              "name": "orchestration_complete",
+              "value": false,
+              "type": "boolean"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        2080,
+        -400
+      ],
+      "id": "5df434b9-944b-469d-90e4-c9b4152aa249",
+      "name": "Fail-Safe Human Review"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "d5755d74-e1b5-4a4e-be60-7abb380e53a3",
+              "name": "workflow_outcome",
+              "value": "HUMAN_APPROVED_PROCEED",
+              "type": "string"
+            },
+            {
+              "id": "c7ecd460-547e-44b7-b506-3072369a82ce",
+              "name": "workflow_status",
+              "value": "HUMAN_DECISION_COMPLETE",
+              "type": "string"
+            },
+            {
+              "id": "cc27350b-e31e-4331-9228-707fb678a925",
+              "name": "workflow_layer",
+              "value": "n8n_orchestration",
+              "type": "string"
+            },
+            {
+              "id": "cac8e654-b6bc-4332-a43f-9ba40d322939",
+              "name": "decision_authority",
+              "value": "HUMAN_INVESTIGATOR",
+              "type": "string"
+            },
+            {
+              "id": "c1e2ce0d-0cb1-4c05-98ca-eaa18a98b1a0",
+              "name": "banking_action_executed",
+              "value": false,
+              "type": "boolean"
+            },
+            {
+              "id": "45bc1fd4-91dd-49e2-bb8d-90d29c4fa0ec",
+              "name": "orchestration_complete",
+              "value": true,
+              "type": "boolean"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        2080,
+        -192
+      ],
+      "id": "1d43a547-a368-4073-9b9b-67123d0432ca",
+      "name": "Human Approved Proceed"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "d5755d74-e1b5-4a4e-be60-7abb380e53a3",
+              "name": "workflow_outcome",
+              "value": "CUSTOMER_VERIFICATION_REQUIRED",
+              "type": "string"
+            },
+            {
+              "id": "c7ecd460-547e-44b7-b506-3072369a82ce",
+              "name": "workflow_status",
+              "value": "VERIFICATION_REQUIRED",
+              "type": "string"
+            },
+            {
+              "id": "cc27350b-e31e-4331-9228-707fb678a925",
+              "name": "workflow_layer",
+              "value": "n8n_orchestration",
+              "type": "string"
+            },
+            {
+              "id": "cac8e654-b6bc-4332-a43f-9ba40d322939",
+              "name": "decision_authority",
+              "value": "HUMAN_INVESTIGATOR",
+              "type": "string"
+            },
+            {
+              "id": "c1e2ce0d-0cb1-4c05-98ca-eaa18a98b1a0",
+              "name": "banking_action_executed",
+              "value": false,
+              "type": "boolean"
+            },
+            {
+              "id": "45bc1fd4-91dd-49e2-bb8d-90d29c4fa0ec",
+              "name": "orchestration_complete",
+              "value": false,
+              "type": "boolean"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        2096,
+        32
+      ],
+      "id": "518baee1-4915-48c8-8ce3-de52a4138b5e",
+      "name": "Customer Verification Required"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "d5755d74-e1b5-4a4e-be60-7abb380e53a3",
+              "name": "workflow_outcome",
+              "value": "CONTINUE_HUMAN_REVIEW",
+              "type": "string"
+            },
+            {
+              "id": "c7ecd460-547e-44b7-b506-3072369a82ce",
+              "name": "workflow_status",
+              "value": "REVIEW_CONTINUES",
+              "type": "string"
+            },
+            {
+              "id": "cc27350b-e31e-4331-9228-707fb678a925",
+              "name": "workflow_layer",
+              "value": "n8n_orchestration",
+              "type": "string"
+            },
+            {
+              "id": "cac8e654-b6bc-4332-a43f-9ba40d322939",
+              "name": "decision_authority",
+              "value": "HUMAN_INVESTIGATOR",
+              "type": "string"
+            },
+            {
+              "id": "c1e2ce0d-0cb1-4c05-98ca-eaa18a98b1a0",
+              "name": "banking_action_executed",
+              "value": false,
+              "type": "boolean"
+            },
+            {
+              "id": "45bc1fd4-91dd-49e2-bb8d-90d29c4fa0ec",
+              "name": "orchestration_complete",
+              "value": false,
+              "type": "boolean"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        2096,
+        256
+      ],
+      "id": "7504bebb-8cc4-49ad-a41b-029ed57e6ca0",
+      "name": "Continue Human Review"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================\n// AEGIS 2.0\n// FINAL GOVERNED AUDIT RECORD\n// ============================================================\n//\n// PURPOSE:\n// 1. Preserve original Python governance decisions.\n// 2. Record validated Human-in-the-Loop decisions.\n// 3. Preserve original attempted human decisions.\n// 4. Record deterministic guardrail enforcement.\n// 5. Capture validation errors for audit transparency.\n// 6. Support autonomous LOW-risk workflows.\n// 7. Preserve escalation and fail-safe outcomes.\n// 8. Ensure no banking action is executed.\n//\n// ============================================================\n\n\n// STEP 1: Retrieve final workflow outcome\n\nconst outcome = $input.first().json;\n\n\n// STEP 2: Retrieve original deterministic\n// Python-governed case\n\nconst governed = $('Validate Governed Payload').first().json;\n\n\n// STEP 3: Safely retrieve guardrail-validated\n// human decision.\n//\n// LOW-risk autonomous workflows may not execute\n// the Human Decision Guardrail node.\n\nlet human = null;\n\ntry {\n  human = $('Enforce Fail-Safe Decision Guardrail').first().json;\n} catch (error) {\n  human = null;\n}\n\n\n// STEP 4: Determine whether human review occurred\n\nconst humanReviewOccurred = human !== null;\n\n\n// STEP 5: Construct final governed audit record\n\nreturn [\n  {\n    json: {\n\n      // =====================================================\n      // AUDIT EVENT\n      // =====================================================\n\n      audit_event: \"AEGIS_WORKFLOW_OUTCOME\",\n\n\n      // =====================================================\n      // CASE IDENTITY\n      // =====================================================\n\n      case_id:\n        outcome.case_id ??\n        human?.case_id ??\n        governed.case_id ??\n        null,\n\n\n      // =====================================================\n      // ORIGINAL PYTHON GOVERNANCE\n      // =====================================================\n\n      original_governance: {\n\n        risk_level:\n          governed.risk_level ?? null,\n\n        risk_score:\n          governed.risk_score ?? null,\n\n        governance_action:\n          governed.governance_action ?? null,\n\n        route:\n          governed.route ?? null,\n\n        authority:\n          governed.orchestration?.authority ??\n          \"PYTHON_GOVERNANCE\"\n\n      },\n\n\n      // =====================================================\n      // HUMAN REVIEW AND GUARDRAIL TRANSPARENCY\n      // =====================================================\n\n      human_review: {\n\n        occurred: humanReviewOccurred,\n\n        // Effective decision after guardrail validation\n        decision:\n          human?.human_decision ?? null,\n\n        // Original decision submitted by investigator\n        original_decision:\n          human?.original_human_decision ?? null,\n\n        // Whether deterministic guardrail blocked it\n        guardrail_blocked:\n          human?.fail_safe_guardrail?.decision_blocked ??\n          false,\n\n        // Detailed validation failures\n        validation_errors:\n          human?.human_review?.validation_errors ??\n          [],\n\n        investigator:\n          human?.investigator ?? null,\n\n        rationale:\n          human?.rationale ?? null,\n\n        decision_source:\n          human?.decision_source ?? null,\n\n        validation_passed:\n          humanReviewOccurred\n            ? (human?.human_review?.valid ?? false)\n            : null\n\n      },\n\n\n      // =====================================================\n      // FINAL WORKFLOW OUTCOME\n      // =====================================================\n\n      workflow_outcome:\n        outcome.workflow_outcome ?? null,\n\n      workflow_status:\n        outcome.workflow_status ?? null,\n\n      workflow_layer:\n        outcome.workflow_layer ??\n        \"n8n_orchestration\",\n\n\n      // =====================================================\n      // DECISION AUTHORITY\n      // =====================================================\n\n      decision_authority:\n        outcome.decision_authority ??\n        (\n          humanReviewOccurred\n            ? \"HUMAN_INVESTIGATOR\"\n            : \"PYTHON_GOVERNANCE\"\n        ),\n\n\n      // =====================================================\n      // BANKING ACTION SAFETY\n      // =====================================================\n\n      banking_action_executed: false,\n\n\n      // =====================================================\n      // ORCHESTRATION COMPLETION STATUS\n      // =====================================================\n\n      orchestration_complete:\n        outcome.orchestration_complete === true,\n\n\n      // =====================================================\n      // AUDIT METADATA\n      // =====================================================\n\n      audit_metadata: {\n\n        recorded_at:\n          new Date().toISOString(),\n\n        source: \"n8n\",\n\n        prototype_environment: true,\n\n        immutable_audit_claim: false\n\n      }\n\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2768,
+        16
+      ],
+      "id": "2ed324b1-2469-4492-a6a7-ed9ed726408f",
+      "name": "Final Audit Record"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "bf6aac43-a025-408d-a9b8-c9b066573d28",
+              "name": "workflow_outcome",
+              "value": "AUTONOMOUS_LOW_RISK_PROCEED",
+              "type": "string"
+            },
+            {
+              "id": "715b580c-97b1-41f2-b2c8-ed25bb5cbc98",
+              "name": "workflow_status",
+              "value": "LOW_RISK_COMPLETE",
+              "type": "string"
+            },
+            {
+              "id": "aa53e096-bb04-40dd-b8f1-1ef21060a72e",
+              "name": "workflow_layer",
+              "value": "n8n_orchestration",
+              "type": "string"
+            },
+            {
+              "id": "401b9778-3104-4514-bad9-c2758b1b1915",
+              "name": "decision_authority",
+              "value": "PYTHON_GOVERNANCE",
+              "type": "string"
+            },
+            {
+              "id": "c9e5c459-891a-4b08-bca0-0ebe665c5939",
+              "name": "banking_action_executed",
+              "value": false,
+              "type": "boolean"
+            },
+            {
+              "id": "d03d8304-c6c9-46f5-8b49-b5d7520a7b40",
+              "name": "orchestration_complete",
+              "value": true,
+              "type": "boolean"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        1376,
+        -192
+      ],
+      "id": "28a909c5-01d8-44d8-bdca-7378e63d63be",
+      "name": "Autonomous Low-Risk Outcome"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({\n  accepted: true,\n  case_id: $json.case_id ?? null,\n  risk_level: \"LOW\",\n  workflow_state: \"LOW_RISK_COMPLETE\",\n  workflow_outcome: $json.workflow_outcome ?? \"AUTONOMOUS_LOW_RISK_PROCEED\",\n  workflow_status: $json.workflow_status ?? \"LOW_RISK_COMPLETE\",\n  decision_authority: \"PYTHON_GOVERNANCE\",\n  human_review_required: false,\n  banking_action_executed: false,\n  orchestration_complete: true,\n  message: \"LOW-risk case completed by governed orchestration. No human review required.\"\n}) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        1856,
+        -592
+      ],
+      "id": "74030fa0-a3f8-4946-8f5f-8b69f58461c9",
+      "name": "LOW Risk Response"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "0f7069d2-e953-4842-9c53-7c7c3567f05c",
+              "name": "workflow_outcome",
+              "value": "FAIL_SAFE_MANUAL_REVIEW",
+              "type": "string"
+            },
+            {
+              "id": "3f21250b-6e91-4521-b3ab-4920a1fa43d1",
+              "name": "workflow_status",
+              "value": "MANUAL_REVIEW_REQUIRED",
+              "type": "string"
+            },
+            {
+              "id": "a4666b86-3f8e-497a-82fc-c193c5afbaee",
+              "name": "workflow_layer",
+              "value": "n8n_orchestration",
+              "type": "string"
+            },
+            {
+              "id": "058a85db-ea3a-4925-a8ac-6df84ffda1a6",
+              "name": "decision_authority",
+              "value": "FAIL_SAFE_GOVERNANCE",
+              "type": "string"
+            },
+            {
+              "id": "e3235c30-71f5-4e96-bfcd-f27f88180990",
+              "name": "banking_action_executed",
+              "value": false,
+              "type": "boolean"
+            },
+            {
+              "id": "17df14c7-08a3-46f0-ba6a-2087cf71eb22",
+              "name": "orchestration_complete",
+              "value": false,
+              "type": "boolean"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        576,
+        240
+      ],
+      "id": "77015a24-97ac-4012-8644-a18f26bbfca5",
+      "name": "Governance Fail-Safe Manual Review"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({\n  accepted: true,\n\n  case_id: $json.case_id ?? null,\n\n  risk_level: \"UNKNOWN\",\n\n  submitted_risk_level: $json.risk_level ?? null,\n\n  workflow_state: \"AWAITING_FAIL_SAFE_MANUAL_REVIEW\",\n\n  workflow_outcome: \"FAIL_SAFE_MANUAL_REVIEW\",\n\n  workflow_status: \"MANUAL_REVIEW_REQUIRED\",\n\n  validation_errors:\n    $json.orchestration?.validation_errors ?? [],\n\n  human_review_required: true,\n\n  resume_url: $execution.resumeUrl || null,\n\n  decision_authority: \"FAIL_SAFE_GOVERNANCE\",\n\n  banking_action_executed: false,\n\n  orchestration_complete: false,\n\n  message: \"Case requires mandatory manual review due to invalid or incomplete governance evidence. No banking action has been executed.\"\n}) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        800,
+        240
+      ],
+      "id": "18b07327-9dc2-4dbf-8557-4ee9edf5ed07",
+      "name": "Fail-Safe Intake Response"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================\n// AEGIS 2.0\n// DETERMINISTIC FAIL-SAFE HUMAN DECISION GUARDRAIL\n// ============================================================\n//\n// PURPOSE:\n// 1. Preserve Python governance authority.\n// 2. Validate human decisions against original case evidence.\n// 3. Prevent unsafe approval of INVALID / UNKNOWN cases.\n// 4. Prevent rejected decisions from entering approved routes.\n// 5. Preserve original decisions for auditability.\n// 6. Never execute banking actions.\n//\n// ============================================================\n\n\n// STEP 1: Retrieve the validated human decision\n\nconst decision = $input.first().json;\n\n\n// STEP 2: Retrieve original Python-governed evidence\n\nconst governed = $('Validate Governed Payload').first().json;\n\n\n// STEP 3: Identify original governance classification\n\nconst riskLevel = String(\n  governed.risk_level ?? \"UNKNOWN\"\n).trim().toUpperCase();\n\nconst payloadValid =\n  governed.orchestration?.payload_valid === true;\n\n\n// STEP 4: Identify mandatory fail-safe conditions\n\nconst isFailSafe =\n  !payloadValid || riskLevel === \"UNKNOWN\";\n\n\n// STEP 5: Define permitted fail-safe human decisions\n\nconst allowedFailSafeDecisions = [\n  \"HOLD AND REVIEW\",\n  \"ESCALATE TO SENIOR INVESTIGATOR\"\n];\n\n\n// STEP 6: Preserve existing validation errors\n\nconst errors = Array.isArray(\n  decision.human_review?.validation_errors\n)\n  ? [...decision.human_review.validation_errors]\n  : [];\n\n\n// STEP 7: Validate original case identity\n\nconst originalCaseId = String(\n  governed.case_id ?? \"\"\n).trim();\n\nconst decisionCaseId = String(\n  decision.case_id ?? \"\"\n).trim();\n\nif (\n  !originalCaseId ||\n  originalCaseId !== decisionCaseId\n) {\n  errors.push(\n    \"Human decision case ID does not match the original governed case.\"\n  );\n}\n\n\n// STEP 8: Preserve the investigator's original decision\n\nconst originalHumanDecision =\n  decision.human_decision ?? null;\n\n\n// STEP 9: Enforce mandatory fail-safe restrictions\n\nconst blockedDecision =\n  isFailSafe &&\n  !allowedFailSafeDecisions.includes(\n    originalHumanDecision\n  );\n\nif (blockedDecision) {\n  errors.push(\n    \"FAIL-SAFE GUARDRAIL: Invalid or UNKNOWN cases cannot proceed or complete ordinary verification without resolving governance concerns.\"\n  );\n}\n\n\n// STEP 10: Calculate final deterministic validation\n\nconst finalValid =\n  decision.human_review?.valid === true &&\n  errors.length === 0;\n\n\n// STEP 11: Prevent rejected decisions from entering\n// ordinary approved workflow branches\n\nconst safeHumanDecision = finalValid\n  ? originalHumanDecision\n  : \"INVALID_FAIL_SAFE_DECISION\";\n\n\n// STEP 12: Return governed and audit-ready decision\n\nreturn [\n  {\n    json: {\n\n      ...decision,\n\n      // Preserve the original investigator decision\n      original_human_decision: originalHumanDecision,\n\n      // Only permit validated decisions to enter routing\n      human_decision: safeHumanDecision,\n\n      // Updated human-review validation\n      human_review: {\n\n        ...decision.human_review,\n\n        valid: finalValid,\n\n        validation_errors: errors\n\n      },\n\n      // Deterministic governance metadata\n      fail_safe_guardrail: {\n\n        checked: true,\n\n        applied: isFailSafe,\n\n        decision_blocked: blockedDecision,\n\n        original_payload_valid: payloadValid,\n\n        original_risk_level: riskLevel,\n\n        original_case_id: originalCaseId || null,\n\n        original_human_decision: originalHumanDecision,\n\n        effective_human_decision: safeHumanDecision,\n\n        requires_manual_review: isFailSafe,\n\n        validation_passed: finalValid,\n\n        authority: \"DETERMINISTIC_GOVERNANCE\"\n\n      },\n\n      // Absolute prototype safety restriction\n      banking_action_executed: false\n\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1552,
+        32
+      ],
+      "id": "315dbfa0-d9a0-4333-8766-4024bcc0f7bf",
+      "name": "Enforce Fail-Safe Decision Guardrail"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "00a5e45f-0225-447c-a463-eba51a3bcca6",
+              "leftValue": "={{ $json.human_review?.occurred === true }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        2992,
+        16
+      ],
+      "id": "25c1e825-56da-4890-ab72-5e28af675981",
+      "name": "Human Audit Required?"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:8765/api/n8n/final-audit",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        3216,
+        -48
+      ],
+      "id": "03a70354-e75d-48b7-a61a-28154591e58d",
+      "name": "AEGIS Final Audit Sync V2."
+    }
+  ],
+  "connections": {
+    "AEGIS Case Intake": {
+      "main": [
+        [
+          {
+            "node": "Validate Governed Payload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Governed Payload": {
+      "main": [
+        [
+          {
+            "node": "Governance Router",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Governance Router": {
+      "main": [
+        [
+          {
+            "node": "Governance Fail-Safe Manual Review",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Autonomous Low-Risk Outcome",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "AEGIS Intake Response",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "AEGIS Intake Response",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Governance Fail-Safe Manual Review",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AEGIS Intake Response": {
+      "main": [
+        [
+          {
+            "node": "Wait for Human Decision",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait for Human Decision": {
+      "main": [
+        [
+          {
+            "node": "Validate Human Decision",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Human Decision": {
+      "main": [
+        [
+          {
+            "node": "Enforce Fail-Safe Decision Guardrail",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Human Decision Router": {
+      "main": [
+        [
+          {
+            "node": "Fail-Safe Human Review",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Human Approved Proceed",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Customer Verification Required",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Continue Human Review",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Senior Investigator Escalation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Senior Investigator Escalation": {
+      "main": [
+        [
+          {
+            "node": "Final Audit Record",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Continue Human Review": {
+      "main": [
+        [
+          {
+            "node": "Final Audit Record",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Customer Verification Required": {
+      "main": [
+        [
+          {
+            "node": "Final Audit Record",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Human Approved Proceed": {
+      "main": [
+        [
+          {
+            "node": "Final Audit Record",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fail-Safe Human Review": {
+      "main": [
+        [
+          {
+            "node": "Final Audit Record",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Autonomous Low-Risk Outcome": {
+      "main": [
+        [
+          {
+            "node": "LOW Risk Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LOW Risk Response": {
+      "main": [
+        [
+          {
+            "node": "Final Audit Record",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Governance Fail-Safe Manual Review": {
+      "main": [
+        [
+          {
+            "node": "Fail-Safe Intake Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fail-Safe Intake Response": {
+      "main": [
+        [
+          {
+            "node": "Wait for Human Decision",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enforce Fail-Safe Decision Guardrail": {
+      "main": [
+        [
+          {
+            "node": "Human Decision Router",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Final Audit Record": {
+      "main": [
+        [
+          {
+            "node": "Human Audit Required?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Human Audit Required?": {
+      "main": [
+        [
+          {
+            "node": "AEGIS Final Audit Sync V2.",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "AEGIS Final Audit Sync V2.",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "tags": []
+}
